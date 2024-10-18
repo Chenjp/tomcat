@@ -85,9 +85,9 @@ public class TestResolverSSL extends TomcatBaseTest {
         tomcat.start();
 
         Assume.assumeFalse("LibreSSL does not allow renegotiation",
-                TesterSupport.isOpenSSLVariant(sslImplementationName, OpenSSLStatus.Name.LIBRESSL));
+                OpenSSLStatus.Name.LIBRESSL.equals(OpenSSLStatus.getName()));
         Assume.assumeFalse("BoringSSL does not allow TLS renegotiation",
-                TesterSupport.isOpenSSLVariant(sslImplementationName, OpenSSLStatus.Name.BORINGSSL));
+                OpenSSLStatus.Name.BORINGSSL.equals(OpenSSLStatus.getName()));
 
         ByteChunk res = getUrl("https://localhost:" + getPort() + "/protected");
         // Just look a bit at the result

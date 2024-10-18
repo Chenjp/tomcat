@@ -36,6 +36,7 @@ import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.buf.MessageBytes;
+import org.apache.tomcat.util.compat.JreCompat;
 import org.apache.tomcat.util.compat.JreVendor;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
@@ -207,13 +208,13 @@ public class SpnegoAuthenticator extends AuthenticatorBase {
             } else {
                 credentialLifetime = GSSCredential.DEFAULT_LIFETIME;
             }
-            gssContext = manager.createContext(Subject.callAs(subject, () -> {
+            gssContext = manager.createContext(JreCompat.getInstance().callAs(subject, () -> {
                 return manager.createCredential(null, credentialLifetime, new Oid("1.3.6.1.5.5.2"),
                         GSSCredential.ACCEPT_ONLY);
             }));
 
             final GSSContext gssContextFinal = gssContext;
-            outToken = Subject.callAs(subject, () -> {
+            outToken = JreCompat.getInstance().callAs(subject, () -> {
                 return gssContextFinal.acceptSecContext(decoded, 0, decoded.length);
             });
 
@@ -227,7 +228,7 @@ public class SpnegoAuthenticator extends AuthenticatorBase {
                 return false;
             }
 
-            principal = Subject.callAs(subject, () -> {
+            principal = JreCompat.getInstance().callAs(subject, () -> {
                 return context.getRealm().authenticate(gssContextFinal, storeDelegatedCredential);
             });
         } catch (GSSException e) {

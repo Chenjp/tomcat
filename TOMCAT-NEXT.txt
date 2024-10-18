@@ -15,6 +15,10 @@
   limitations under the License.
 ================================================================================
 
-Notes of things to consider for the next major Tomcat release (12.x)
+Notes of things to consider for the next major Tomcat release (11.x)
 
- 1. Add QUIC support using OpenSSL and FFM.
+ 1. Implement OCSP checks for client certs with NIO/NIO2.
+    Useful reference:
+    https://stackoverflow.com/questions/5161504/ocsp-revocation-on-client-certificate
+
+ 2. Add QUIC support using OpenSSL and FFM.

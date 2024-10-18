@@ -151,8 +151,7 @@ public class TestSsl extends TomcatBaseTest {
         tomcat.start();
 
         Assume.assumeFalse("BoringSSL and LibreSSL return no session id",
-                TesterSupport.isOpenSSLVariant(sslImplementationName, OpenSSLStatus.Name.BORINGSSL)
-                    || TesterSupport.isOpenSSLVariant(sslImplementationName, OpenSSLStatus.Name.LIBRESSL));
+                OpenSSLStatus.Name.BORINGSSL.equals(OpenSSLStatus.getName()) || OpenSSLStatus.Name.LIBRESSL.equals(OpenSSLStatus.getName()));
 
         getUrl("https://localhost:" + getPort() + "/examples/servlets/servlet/HelloWorldExample");
         // SSL is the only source for the requested session ID, and SessionTrackingMode.SSL is set on examples

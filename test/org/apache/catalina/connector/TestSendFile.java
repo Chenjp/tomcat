@@ -163,13 +163,8 @@ public class TestSendFile extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk bc = new ByteChunk();
-        try {
-            getUrl("http://localhost:" + getPort() + "/test/?" + Globals.SENDFILE_SUPPORTED_ATTR
-                    + "=true", bc, null);
-        } catch (IOException e) {
-            // Ignore possible IOE due to file delete on the server
-            System.out.println("Ignored: " + e.getMessage());
-        }
+        getUrl("http://localhost:" + getPort() + "/test/?" + Globals.SENDFILE_SUPPORTED_ATTR
+                + "=true", bc, null);
 
         CountDownLatch latch = new CountDownLatch(2);
         List<Throwable> throwables = new CopyOnWriteArrayList<>();
