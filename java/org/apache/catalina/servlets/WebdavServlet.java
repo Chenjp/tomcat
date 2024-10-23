@@ -637,6 +637,17 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         return hrefPath;
     }
 
+     * Explicitly prevent the response being cached by middle tier, e.g. <type>ExpiresFilter</type>, http server, or
+     * proxy server, browser.
+     * 
+     * @param resp The Servlet response
+     */
+    protected void disableCache(HttpServletResponse resp) {
+        resp.setHeader("Cache-Control", "no-cache,no-store,max-age=0"); // HTTP 1.1
+        // Typically, other components follow 'Expires' header.
+        resp.setDateHeader("Expires", 1);// Force expired
+    }
+    
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.addHeader("DAV", "1,2");
@@ -1214,10 +1225,13 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         if (depthStr == null) {
             lock.depth = maxDepth;
         } else {
-            if (depthStr.equals("0")) {
+            if ("0".equals(depthStr)) {
                 lock.depth = 0;
-            } else {
+            } else if("infinity".equals(depthStr)) {
                 lock.depth = maxDepth;
+            } else {
+                resp.setStatus(WebdavStatus.SC_BAD_REQUEST);
+                return;
             }
         }
 
