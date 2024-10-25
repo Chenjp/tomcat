@@ -222,7 +222,7 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
      */
     protected static final String DEFAULT_NAMESPACE = "DAV:";
 
-
+    protected static final String OPAQUE_LOCK_TOKEN="opaquelocktoken";
     /**
      * Supported locks.
      */
@@ -581,10 +581,8 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         } else if (method.equals(METHOD_MOVE)) {
             doMove(req, resp);
         } else if (method.equals(METHOD_LOCK)) {
-            disableCacheable(resp);
             doLock(req, resp);
         } else if (method.equals(METHOD_UNLOCK)) {
-            disableCacheable(resp);
             doUnlock(req, resp);
         } else {
             // DefaultServlet processing
@@ -647,7 +645,7 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
                             } else {
                                 if ((parentPath != currentPath && parentLock.depth > 0) || parentPath == currentPath) {
                                     if (parentLock.isExclusive()) {
-                                        lockTokens.add("opaquelocktoken:" + parentLock.token);
+                                        lockTokens.add(OPAQUE_LOCK_TOKEN + ":" + parentLock.token);
                                     } else {
                                         for (String token : parentLock.sharedTokens) {
                                             if (sharedLocks.get(token) == null) {
@@ -662,7 +660,7 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
                                             if (sharedLock != null) {
                                                 if ((parentPath != currentPath && sharedLock.depth > 0) ||
                                                         parentPath == currentPath) {
-                                                    lockTokens.add("opaquelocktoken:" + token);
+                                                    lockTokens.add(OPAQUE_LOCK_TOKEN + ":" + token);
                                                 }
                                             }
                                         }
@@ -778,20 +776,6 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         }
 
         return methodsAllowed.toString();
-    }
-    
-    /**
-     * Explicitly prevent the response from being cached by middle tier, e.g., <type>ExpiresFilter</type>, http server, or
-     * proxy server, browser.
-     * @param resp The HTTP Servlet response
-     * @see <a href="https://datatracker.ietf.org/doc/html/rfc7234">RFC 7234</a>
-     */
-    protected void disableCacheable(HttpServletResponse resp) {
-        resp.setHeader("Cache-Control", "no-cache, no-store, max-age=0"); // HTTP 1.1
-        /*
-         * Typically other components follow 'Expires' header.
-         */
-        resp.setDateHeader("Expires", 0);
     }
 
 
@@ -1336,10 +1320,13 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         if (depthStr == null) {
             lock.depth = maxDepth;
         } else {
-            if (depthStr.equals("0")) {
+            if ("0".equals(depthStr)) {
                 lock.depth = 0;
-            } else {
+            } else if("infinity".equals(depthStr)) {
                 lock.depth = maxDepth;
+            } else {
+                resp.setStatus(WebdavStatus.SC_BAD_REQUEST);
+                return;
             }
         }
 
@@ -1626,8 +1613,8 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
                 sharedLocks.put(lockToken, lock);
             }
 
-            // Add the Lock-Token header as by RFC 2518 8.10.1
-            resp.addHeader("Lock-Token", "<opaquelocktoken:" + lockToken + ">");
+            // Add the Lock-Token header as by RFC 4918 9.10.1
+            resp.addHeader("Lock-Token", "<"+OPAQUE_LOCK_TOKEN + ":" + lockToken + ">");
 
         }
 
@@ -1650,8 +1637,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
                     } else {
                         if ((parentPath != path && parentLock.depth > 0) || parentPath == path) {
                             if (parentLock.isExclusive()) {
-                                if (ifHeader.contains(":" + parentLock.token + ">") && (parentLock.principal == null ||
-                                        parentLock.principal.equals(req.getRemoteUser()))) {
+                                if (ifHeader.contains("<" + OPAQUE_LOCK_TOKEN + ":" + parentLock.token + ">") &&
+                                        (parentLock.principal == null ||
+                                                parentLock.principal.equals(req.getRemoteUser()))) {
                                     toRenew = parentLock;
                                     break;
                                 }
@@ -1736,8 +1724,11 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         }
 
         String lockTokenHeader = req.getHeader("Lock-Token");
-        if (lockTokenHeader == null) {
-            lockTokenHeader = "";
+        if (lockTokenHeader == null || !lockTokenHeader.startsWith("<" + OPAQUE_LOCK_TOKEN+":") ||
+                !lockTokenHeader.endsWith(">")) {
+            // ensure header pattern: '<opaquelocktoken:$token>'
+            resp.setStatus(WebdavStatus.SC_BAD_REQUEST);
+            return;
         }
 
         boolean unlocked = false;
@@ -2850,7 +2841,7 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
 
             generatedXML.writeElement("D", "locktoken", XMLWriter.OPENING);
             generatedXML.writeElement("D", "href", XMLWriter.OPENING);
-            generatedXML.writeText("opaquelocktoken:" + token);
+            generatedXML.writeText(OPAQUE_LOCK_TOKEN + ":" + token);
             generatedXML.writeElement("D", "href", XMLWriter.CLOSING);
             generatedXML.writeElement("D", "locktoken", XMLWriter.CLOSING);
 

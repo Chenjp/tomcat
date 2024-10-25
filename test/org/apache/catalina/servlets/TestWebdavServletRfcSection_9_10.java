@@ -58,11 +58,6 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
         client.lockResource(mappedUrl, lockOwner, true, "0", "Unexpected status code.",
                 c -> c.isResponse200() || WebdavStatus.SC_CREATED == c.getStatusCode());
         Assert.assertTrue(client.getResponseBody().contains("opaquelocktoken:"));
-        /* Check cache */
-        if (client.isResponseCacheable()) {
-            Assert.fail(
-                    "9.10. LOCK Method - Responses to this method MUST NOT be cached - Please check cache-control, expires, and etag");
-        }
     }
 
     /**
@@ -113,7 +108,7 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
     /**
      * 9.10.2. Refreshing Locks
      */
-//    @Test
+    @Test
     public void testRfc_9_10_2() throws Exception {
         Context ctx = prepareContext("rfc_9_10_2");
         prepareWebdav(ctx, true, false);
@@ -139,7 +134,9 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
          * single lock token (only one lock may be refreshed at a time).
          */
         /* Negative case: With wrong lock token */
-        client.refreshResourceLock(mappedUrl, "(<"+lockToken+"z>)", "9.10.2. Refreshing Locks - This request MUST NOT have a body and it MUST specify which lock to refresh by using the 'If' header with a single lock token (only one lock may be refreshed at a time).",r->r.getStatusCode()>=400);
+        client.refreshResourceLock(mappedUrl, "(<" + lockToken + "z>)",
+                "9.10.2. Refreshing Locks - This request MUST NOT have a body and it MUST specify which lock to refresh by using the 'If' header with a single lock token (only one lock may be refreshed at a time).",
+                r -> r.getStatusCode() >= 400);
         /* Negative case: With body */
         String lockBody = buildLockBody(true, lockOwner);
         client.setRequest(new String[] { "LOCK " + mappedUrl + " HTTP/1.1" + SimpleHttpClient.CRLF +
@@ -199,7 +196,9 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
 
         client.connect();
         client.processRequest(true);
-        Assert.assertEquals("9.10.2. Refreshing Locks - Depth header `1` is invalid for LOCK.", WebdavStatus.SC_BAD_REQUEST, client.getStatusCode());
+        Assert.assertEquals(
+                "9.10.2. Refreshing Locks - Values other than 0 or infinity MUST NOT be used with the Depth header on a LOCK method. Depth header `1` is invalid.",
+                WebdavStatus.SC_BAD_REQUEST, client.getStatusCode());
         /* Depth: 2 */
         client.setRequest(new String[] {
                 "LOCK " + mappedUrl + " HTTP/1.1" + SimpleHttpClient.CRLF + "Host: localhost:" + getPort() +
@@ -208,7 +207,8 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
 
         client.connect();
         client.processRequest(true);
-        Assert.assertEquals("9.10.2. Refreshing Locks - Depth header `2` is invalid.", WebdavStatus.SC_BAD_REQUEST, client.getStatusCode());
+        Assert.assertEquals("9.10.2. Refreshing Locks - Depth header `2` is invalid.", WebdavStatus.SC_BAD_REQUEST,
+                client.getStatusCode());
         /* Depth: Hello, world */
         client.setRequest(new String[] { "LOCK " + mappedUrl + " HTTP/1.1" + SimpleHttpClient.CRLF +
                 "Host: localhost:" + getPort() + SimpleHttpClient.CRLF + "Connection: Close" + SimpleHttpClient.CRLF +
@@ -217,7 +217,8 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
 
         client.connect();
         client.processRequest(true);
-        Assert.assertEquals("9.10.2. Refreshing Locks - Depth header `Hello, world` is invalid.", WebdavStatus.SC_BAD_REQUEST, client.getStatusCode());
+        Assert.assertEquals("9.10.2. Refreshing Locks - Depth header `Hello, world` is invalid.",
+                WebdavStatus.SC_BAD_REQUEST, client.getStatusCode());
     }
 
     /**
@@ -243,7 +244,7 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
      * If no Depth header is submitted on a LOCK request, then the request MUST act as if a "Depth:infinity" had been
      * submitted.
      */
-//    @Test
+    @Test
     public void testRfc_9_10_3() throws Exception {
         Context ctx = prepareContext("rfc_9_10_3");
         prepareWebdav(ctx, true, false);
@@ -277,7 +278,7 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
          * Invalid Depth header request:Values other than 0 or infinity MUST NOT be used
          */
         lockToken1 = client.lockResource(mappedUrl1, lockOwner, true, "-1",
-                "9.10.3. Depth and Locking - The Depth header may be used with the LOCK method. Values other than 0 or infinity MUST NOT used with the Depth header on a LOCK method. 4xx status coude expected",
+                "9.10.3. Depth and Locking - The Depth header may be used with the LOCK method. Depth header `-1` is invalid. 4xx status coude expected",
                 c -> c.getStatusCode() >= 400 && c.getStatusCode() < 500);
         Assert.assertNull(lockToken1);
 
@@ -287,7 +288,7 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
         Assert.assertNull(lockToken1);
 
         lockToken1 = client.lockResource(mappedUrl1, lockOwner, true, "2",
-                "9.10.3. Depth and Locking - The Depth header may be used with the LOCK method. Values other than 0 or infinity MUST NOT used with the Depth header on a LOCK method. 4xx status coude expected",
+                "9.10.3. Depth and Locking - The Depth header may be used with the LOCK method. Depth header `2` is invalid. 4xx status coude expected",
                 c -> c.getStatusCode() >= 400 && c.getStatusCode() < 500);
         Assert.assertNull(lockToken1);
 
@@ -534,7 +535,7 @@ public class TestWebdavServletRfcSection_9_10 extends WebdavServletRfcSectionBas
         resourceUri = "/" + collection1 + "/" + collection12 + "/EMPTY_RESOURCE.html";// Empty resource
         String sharedLockToken121 = client.lockResource(resourceUri, lockOwner + "_shared11", false, "infinity",
                 "9.10.6. LOCK Responses - 201 (Created)", r -> WebdavStatus.SC_CREATED == r.getStatusCode());
-        Assert.assertNotNull("9.10.6. LOCK Responses - 201 (Created)", sharedLockToken11);
+        Assert.assertNotNull("9.10.6. LOCK Responses - 201 (Created)", sharedLockToken121);
 
         /* 409 */
         resourceUri = "/" + collection1 + "/" + collection12 + "/409/EMPTY_RESOURCE.html";

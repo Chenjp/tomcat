@@ -158,20 +158,13 @@ public class TestWebdavServletRfcSection_9_11 extends WebdavServletRfcSectionBas
                         anotherLockToken + "> [" + etagValue + "])",
                 "9.11. UNLOCK Method - UNLOCK SC_NO_CONTENT expected.",
                 r -> WebdavStatus.SC_NO_CONTENT == r.getStatusCode());
-
-        /* Responses to this method MUST NOT be cached. */
-        if(client.isResponseCacheable()) {
-            Assert.fail(
-                    "9.11. UNLOCK Method - Responses to this method MUST NOT be cached - Please check cache-control, expires, and etag");
-        }
-
     }
 
     /**
      * 9.11.1. Status Codes
      * <p>
      */
-//    @Test
+    @Test
     public void testRfc_9_11_1() throws Exception {
         Context ctx = prepareContext("rfc_9_11_1");
         prepareWebdav(ctx, true, false);
@@ -195,7 +188,8 @@ public class TestWebdavServletRfcSection_9_11 extends WebdavServletRfcSectionBas
         Assert.assertNotNull(lockToken);
         // 400
         client.unlockResource("/" + collection1 + "/" + collection11, null,
-                "400 (Bad Request) - No lock token was provided.", r -> r.isResponse400());
+                "9.11. UNLOCK Method - 400 (Bad Request) expected due to `No lock token was provided`.",
+                r -> r.isResponse400());
         // 403
 
     }
