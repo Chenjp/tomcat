@@ -20,9 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -35,7 +33,6 @@ import org.junit.runners.Parameterized.Parameter;
 import static org.apache.catalina.startup.SimpleHttpClient.CRLF;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.startup.Tomcat;
-import org.apache.tomcat.util.buf.ByteChunk;
 
 @RunWith(Parameterized.class)
 public class TestServletRequestParametersFormUrlEncoded extends ServletRequestParametersBaseTest {
@@ -45,7 +42,10 @@ public class TestServletRequestParametersFormUrlEncoded extends ServletRequestPa
         List<Object[]> parameterSets = new ArrayList<>();
 
         for (Boolean chunked : booleans) {
-            parameterSets.add(new Object[] { chunked });
+            for (String contentType : Arrays.asList("application/x-www-form-urlencoded".toLowerCase(),
+                    "application/x-www-form-urlencoded".toUpperCase())) {
+                parameterSets.add(new Object[] { chunked, contentType });
+            }
         }
 
         return parameterSets;
@@ -53,7 +53,8 @@ public class TestServletRequestParametersFormUrlEncoded extends ServletRequestPa
 
     @Parameter(0)
     public boolean chunked;
-
+    @Parameter(1)
+    public String contentType;
 
     @Test
     public void testBodyTooLarge() throws Exception {
@@ -107,31 +108,39 @@ public class TestServletRequestParametersFormUrlEncoded extends ServletRequestPa
     }
 
     @Test
-    public void testBug69442_lowercase_media_type() throws Exception {
-        Tomcat tomcat = getTomcatInstanceTestWebapp(false, true);
-        tomcat.start();
-        ByteChunk bc = new ByteChunk();
-        Map<String,List<String>> reqHeaders = new HashMap<String,List<String>>();
-        reqHeaders.put("Content-Type", Arrays.asList("application/x-www-form-urlencoded".toLowerCase()));
-        postUrl("username=Tomcat1&usertype=biz".getBytes(),
-                "http://localhost:" + getPort() + "/test/bug6nnnn/bug69442.jsp", bc, reqHeaders,
-                new HashMap<String,List<String>>());
-        String responseBody = bc.toString();
-        Assert.assertTrue(responseBody.contains("username=Tomcat1"));
-        Assert.assertTrue(responseBody.contains("usertype=biz"));
-    }
+    public void testBug69442() throws Exception {
+        Tomcat tomcat = getTomcatInstance();
 
-    @Test
-    public void testBug69442_uppercase_media_type() throws Exception {
-        Tomcat tomcat = getTomcatInstanceTestWebapp(false, true);
+        // No file system docBase required
+        StandardContext ctx = (StandardContext) getProgrammaticRootContext();
+
+        // Map the test Servlet
+        ParameterParsingServlet parameterParsingServlet = new ParameterParsingServlet();
+        Tomcat.addServlet(ctx, "parameterParsingServlet", parameterParsingServlet);
+        ctx.addServletMappingDecoded("/", "parameterParsingServlet");
+
         tomcat.start();
-        ByteChunk bc = new ByteChunk();
-        Map<String,List<String>> reqHeaders = new HashMap<String,List<String>>();
-        reqHeaders.put("Content-Type", Arrays.asList("application/x-www-form-urlencoded".toUpperCase()));
-        postUrl("username=Tomcat1&usertype=biz".getBytes(),
-                "http://localhost:" + getPort() + "/test/bug6nnnn/bug69442.jsp", bc, reqHeaders,
-                new HashMap<String,List<String>>());
-        String responseBody = bc.toString();
+
+        TestParameterClient client = new TestParameterClient();
+        client.setPort(getPort());
+
+        if (chunked) {
+            String payload = "11;hash=1a2b3c4d" + CRLF + "username=Tomcat1&" + CRLF + "0c;hash=1a2b3c4d" + CRLF +
+                    "usertype=biz" + CRLF + "0" + CRLF + CRLF;
+            client.setRequest(new String[] { "POST / HTTP/1.1" + CRLF + "Host: localhost:" + getPort() + CRLF +
+                    "Connection: close" + CRLF + "Transfer-Encoding: chunked" + CRLF + "Content-Type: " + contentType +
+                    CRLF + CRLF + payload });
+        } else {
+            String payload = "username=Tomcat1&usertype=biz";
+            client.setRequest(new String[] { "POST / HTTP/1.1" + CRLF + "Host: localhost:" + getPort() + CRLF +
+                    "Connection: close" + CRLF + "Content-Length: " + payload.length() + CRLF + "Content-Type: " +
+                    contentType + CRLF + CRLF + payload });
+        }
+        client.setResponseBodyEncoding(StandardCharsets.UTF_8);
+        client.connect();
+        client.processRequest();
+
+        String responseBody = client.getResponseBody();
         Assert.assertTrue(responseBody.contains("username=Tomcat1"));
         Assert.assertTrue(responseBody.contains("usertype=biz"));
     }
