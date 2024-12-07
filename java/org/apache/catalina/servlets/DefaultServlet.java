@@ -718,14 +718,16 @@ public class DefaultServlet extends HttpServlet {
      * @param request  The servlet request we are processing
      * @param response The servlet response we are creating
      * @param resource The resource
+     * @param resourceETag The resource etag
+     * @param resourceLastModified The last modification time in milliseconds of the resource
      *
      * @return <code>true</code> if the resource meets all the specified conditions, and <code>false</code> if any of
      *             the conditions is not satisfied, in which case request processing is stopped
      *
      * @throws IOException an IO error occurred
      */
-    protected boolean checkIfHeaders(HttpServletRequest request, HttpServletResponse response, WebResource resource, String resourceETag, long resourceLastModified)
-            throws IOException {
+    protected boolean checkIfHeaders(HttpServletRequest request, HttpServletResponse response, WebResource resource,
+            String resourceETag, long resourceLastModified) throws IOException {
         String ifMatchHeader = request.getHeader("If-Match");
         String ifUnmodifiedSinceHeader = request.getHeader("If-Unmodified-Since");
         String ifNoneMatchHeader = request.getHeader("If-None-Match");
@@ -735,66 +737,68 @@ public class DefaultServlet extends HttpServlet {
 
         // RFC9110 #13.3.2 defines preconditions evaluation order
         int next = 1;
-        k0: switch (next) {
-            case 1:
-                if (ifMatchHeader != null) {
-                    if (checkIfMatch(request, response, resource, resourceETag)) {
+        while (next < 6) {
+            switch (next) {
+                case 1:
+                    if (ifMatchHeader != null) {
+                        if (checkIfMatch(request, response, resource, resourceETag)) {
+                            next = 3;
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        next = 2;
+                    }
+                    break;
+                case 2:
+                    if (ifUnmodifiedSinceHeader != null) {
+                        if (checkIfUnmodifiedSince(request, response, resource, resourceLastModified)) {
+                            next = 3;
+                        } else {
+                            return false;
+                        }
+                    } else {
                         next = 3;
-                    } else {
-                        return false;
                     }
-                } else {
-                    next = 2;
-                }
-                break k0;
-            case 2:
-                if (ifUnmodifiedSinceHeader != null) {
-                    if (checkIfUnmodifiedSince(request, response, resource, resourceLastModified)) {
-                        next = 3;
+                    break;
+                case 3:
+                    if (ifNoneMatchHeader != null) {
+                        if (checkIfNoneMatch(request, response, resource, resourceETag)) {
+                            next = 5;
+                        } else {
+                            return false;
+                        }
                     } else {
-                        return false;
+                        next = 4;
                     }
-                } else {
-                    next = 3;
-                }
-                break k0;
-            case 3:
-                if (ifNoneMatchHeader != null) {
-                    if (checkIfNoneMatch(request, response, resource,resourceETag)) {
+                    break;
+                case 4:
+                    if (("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod())) &&
+                            ifNoneMatchHeader == null && ifModifiedSinceHeader != null) {
+                        if (checkIfModifiedSince(request, response, resource, resourceLastModified)) {
+                            next = 5;
+                        } else {
+                            return false;
+                        }
+                    } else {
                         next = 5;
-                    } else {
-                        return false;
                     }
-                } else {
-                    next = 4;
-                }
-                break k0;
-            case 4:
-                if (("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod())) &&
-                        ifNoneMatchHeader == null && ifModifiedSinceHeader != null) {
-                    if (checkIfModifiedSince(request, response, resource, resourceLastModified)) {
-                        next = 5;
+                    break;
+                case 5:
+                    if ("GET".equals(request.getMethod()) && ifRangeHeader != null && rangeHeader != null) {
+                        if (checkIfRange(request, response, resource) && determineRangeRequestsApplicable(resource)) {
+                            // Partial content, precondition passed
+                            return true;
+                        } else {
+                            // ignore the Range header field
+                            return true;
+                        }
                     } else {
-                        return false;
-                    }
-                } else {
-                    next = 5;
-                }
-                break k0;
-            case 5:
-                if ("GET".equals(request.getMethod()) && ifRangeHeader != null && rangeHeader != null) {
-                    if (checkIfRange(request, response, resource) && determineRangeRequestsApplicable(resource)) {
-                        // Partial content, precondition passed
-                        return true;
-                    } else {
-                        // ignore the Range header field
                         return true;
                     }
-                } else {
+                default:
                     return true;
-                }
-            default:
-                return true;
+            }
         }
         return true;
     }
@@ -906,7 +910,7 @@ public class DefaultServlet extends HttpServlet {
         String eTag = null;
         String lastModifiedHttp = null;
         long lastModified = -1;
-        
+
         if (resource.isFile() && !isError) {
             eTag = generateETag(resource);
             lastModifiedHttp = resource.getLastModifiedHttp();
@@ -921,7 +925,7 @@ public class DefaultServlet extends HttpServlet {
                 return;
             }
         }
-        
+
         // Serve a precompressed version of the file if present
         boolean usingPrecompressedVersion = false;
         if (compressionFormats.length > 0 && !included && resource.isFile() && !pathEndsWithCompressedExtension(path)) {
@@ -2128,7 +2132,7 @@ public class DefaultServlet extends HttpServlet {
      * @param request  The servlet request we are processing
      * @param response The servlet response we are creating
      * @param resource The resource
-     *
+     * @param resourceETag The etag of resource
      * @return <code>true</code> if the resource meets the specified condition, and <code>false</code> if the condition
      *             is not satisfied, in which case request processing is stopped
      *
@@ -2176,7 +2180,7 @@ public class DefaultServlet extends HttpServlet {
      * @param request  The servlet request we are processing
      * @param response The servlet response we are creating
      * @param resource The resource
-     *
+     * @param resourceLastModified The last modification time in milliseconds of the resource
      * @return <code>true</code> if the resource meets the specified condition, and <code>false</code> if the condition
      *             is not satisfied, in which case request processing is stopped
      */
@@ -2210,7 +2214,7 @@ public class DefaultServlet extends HttpServlet {
      * @param request  The servlet request we are processing
      * @param response The servlet response we are creating
      * @param resource The resource
-     *
+     * @param resourceETag  The etag of the resource
      * @return <code>true</code> if the resource meets the specified condition, and <code>false</code> if the condition
      *             is not satisfied, in which case request processing is stopped
      *
@@ -2267,7 +2271,7 @@ public class DefaultServlet extends HttpServlet {
      * @param request  The servlet request we are processing
      * @param response The servlet response we are creating
      * @param resource The resource
-     *
+     * @param resourceLastModified The last modification time in milliseconds of the resource
      * @return <code>true</code> if the resource meets the specified condition, and <code>false</code> if the condition
      *             is not satisfied, in which case request processing is stopped
      *
@@ -2285,7 +2289,7 @@ public class DefaultServlet extends HttpServlet {
             // If-Unmodified-Since is not present, or a list of dates
             return true;
         }
-        
+
         try {
             long headerValue = request.getDateHeader("If-Unmodified-Since");
             if (headerValue != -1) {
