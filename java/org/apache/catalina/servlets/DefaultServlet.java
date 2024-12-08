@@ -2323,12 +2323,12 @@ public class DefaultServlet extends HttpServlet {
     protected boolean checkIfRange(HttpServletRequest request, HttpServletResponse response,
             WebResource resource) throws IOException {
         String headerValue = request.getHeader("If-Range");
-        if(headerValue == null) {
+        if (headerValue == null) {
             return true;
         }
 
         String rangeHeader = request.getHeader("Range");
-        if(rangeHeader == null || !determineRangeRequestsApplicable(resource)) {
+        if (rangeHeader == null || !determineRangeRequestsApplicable(resource)) {
             // Simply ignore If-Range header field
             return true;
         }
@@ -2367,7 +2367,9 @@ public class DefaultServlet extends HttpServlet {
     }
 
     /**
-     * Determines if range-request is applicable for the target resource
+     * Determines if range-request is applicable for the target resource.
+     * <p>
+     * Subclass have an opportunity to customize by overriding this method.
      *
      * @param resource the target resource
      *
