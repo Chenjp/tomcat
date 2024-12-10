@@ -33,6 +33,7 @@ import java.io.Serializable;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Array;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -483,7 +484,7 @@ public class DefaultServlet extends HttpServlet {
 
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        if(!preService(req, resp)) {
+        if (isConditionalAwareRequest(req) && !checkIfHeaders(req, resp)) {
             return;
         }
         if (req.getDispatcherType() == DispatcherType.ERROR) {
@@ -493,8 +494,37 @@ public class DefaultServlet extends HttpServlet {
         }
     }
 
-
-    protected boolean preService(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    
+    /**
+     * Determines whether the request is conditional aware, which is, the request does involve the selection or
+     * modification of a selected representation.
+     * <p>
+     * 
+     * @param request The servlet request we are processing
+     *
+     * @return <code>true</code> if the request is conditional aware. Per latest RFC9110 spec, returns
+     *             <code>false</code> when the request method is one of CONNECT, OPTIONS, or TRACE.
+     */
+    protected boolean isConditionalAwareRequest(HttpServletRequest request) {
+        // RFC 9110 #13.2.1 : Likewise, a server MUST ignore the conditional request header fields defined by this
+        // specification when received with a request method that does not involve the selection or modification of a
+        // selected representation, such as CONNECT, OPTIONS, or TRACE.
+        String method = request.getMethod();
+        return Arrays.binarySearch(new String[] { "CONNECT", "TRACE", "OPTIONS" }, method) != -1;
+    }
+    /**
+     * Check if the conditions specified in the optional If headers are satisfied.
+     *
+     * @param request  The servlet request we are processing
+     * @param response The servlet response we are creating
+     *
+     * @return <code>true</code> if the resource meets all the specified conditions, and <code>false</code> if any of
+     *             the conditions is not satisfied, in which case request processing is stopped
+     *
+     * @throws IOException an IO error occurred
+     */
+    protected boolean checkIfHeaders(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        
         // Identify the requested resource path
         String path = getRelativePath(req, true);
         WebResource resource = resources.getResource(path);
