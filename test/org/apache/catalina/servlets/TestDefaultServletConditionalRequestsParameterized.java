@@ -38,6 +38,8 @@ import org.junit.runners.Parameterized.Parameter;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.Wrapper;
+import org.apache.catalina.servlets.TestDefaultServletConditionalRequests.IfPolicy;
+import org.apache.catalina.servlets.TestDefaultServletConditionalRequests.Task;
 import org.apache.catalina.startup.SimpleHttpClient;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
@@ -95,6 +97,24 @@ public class TestDefaultServletConditionalRequestsParameterized extends TomcatBa
                 false, null, new int[] { 412 } });
         parameterSets.add(new Object[] { false, Task.HEAD_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null,
                 null, false, null, new int[] { 400 } });
+
+        parameterSets.add(new Object[] { true, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, false,
+                null, new int[] { 200 } });
+        parameterSets.add(new Object[] { true, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, false,
+                null, new int[] { 412 } });
+        parameterSets.add(new Object[] { true, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, false,
+                null, new int[] { 200 } });
+        parameterSets.add(new Object[] { true, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null,
+                false, null, new int[] { 200 } });
+
+        parameterSets.add(new Object[] { false, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, false,
+                null, new int[] { 200 } });
+        parameterSets.add(new Object[] { false, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, false,
+                null, new int[] { 412 } });
+        parameterSets.add(new Object[] { false, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, false,
+                null, new int[] { 200 } });
+        parameterSets.add(new Object[] { false, Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null,
+                false, null, new int[] { 200 } });
 
 
         return parameterSets;

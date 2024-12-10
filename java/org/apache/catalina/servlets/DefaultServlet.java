@@ -995,7 +995,7 @@ public class DefaultServlet extends HttpServlet {
                 response.setHeader("Accept-Ranges", "bytes");
 
                 // Parse range specifier
-                ranges = parseRange(request, response, resource);
+                ranges = parseRange(request, response, resource, eTag, lastModified);
                 if (ranges == null) {
                     return;
                 }
@@ -1546,7 +1546,7 @@ public class DefaultServlet extends HttpServlet {
      *
      * @throws IOException an IO error occurred
      */
-    protected Ranges parseRange(HttpServletRequest request, HttpServletResponse response, WebResource resource)
+    protected Ranges parseRange(HttpServletRequest request, HttpServletResponse response, WebResource resource, String resourceETag, long resourceLastModified)
             throws IOException {
 
         // Retrieving the range header (if any is specified)
@@ -1563,10 +1563,12 @@ public class DefaultServlet extends HttpServlet {
             return FULL;
         }
 
-        // Checking If-Range: already performed previously.
-        // RFC 9110 #13.1.5 A server that receives an If-Range header field on a Range request MUST evaluate the
-        // condition per Section 13.2 prior to performing the method.
-
+        // Although If-Range evaluation was performed previously, the result were not propagated.
+        // Hence we have to evaluate If-Range again.
+        if (!checkIfRange(request, response, resource, resourceETag, resourceLastModified)) {
+            return FULL;
+        }
+        
         long fileLength = resource.getContentLength();
 
         if (fileLength == 0) {
