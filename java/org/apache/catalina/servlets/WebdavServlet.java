@@ -582,11 +582,11 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
 
 
     @Override
-    protected boolean checkIfHeaders(HttpServletRequest request, HttpServletResponse response, WebResource resource)
+    protected boolean checkIfHeaders(HttpServletRequest request, HttpServletResponse response, WebResource resource, String resourceETag, long resourceLastModified)
             throws IOException {
 
         // Skip regular HTTP evaluation for a null resource
-        if (resource != null && !super.checkIfHeaders(request, response, resource)) {
+        if (resource != null && !super.checkIfHeaders(request, response, resource,resourceETag,resourceLastModified)) {
             return false;
         }
 
@@ -907,7 +907,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         }
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -1004,7 +1006,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         String path = getRelativePath(req);
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -1182,7 +1186,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         }
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -1238,7 +1244,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         String path = getRelativePath(req);
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -1326,7 +1334,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         String path = getRelativePath(req);
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -1739,7 +1749,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
         String path = getRelativePath(req);
 
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return;
         }
@@ -2002,7 +2014,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
             resp.sendError(WebdavStatus.SC_NOT_FOUND);
             return false;
         }
-        if (!checkIfHeaders(req, resp, source)) {
+        String resourceETag = generateETag(source);
+        long resourceLastModified = source.getLastModified();
+        if (!checkIfHeaders(req, resp, source, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return false;
         }
@@ -2259,7 +2273,9 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
      */
     private boolean deleteResource(String path, HttpServletRequest req, HttpServletResponse resp) throws IOException {
         WebResource resource = resources.getResource(path);
-        if (!checkIfHeaders(req, resp, resource)) {
+        String resourceETag = generateETag(resource);
+        long resourceLastModified = resource.getLastModified();
+        if (!checkIfHeaders(req, resp, resource, resourceETag, resourceLastModified)) {
             resp.setStatus(HttpServletResponse.SC_PRECONDITION_FAILED);
             return false;
         }
@@ -2888,7 +2904,7 @@ public class WebdavServlet extends DefaultServlet implements PeriodicEventListen
     /**
      * Default property store, which provides memory storage without persistence.
      */
-    private class MemoryPropertyStore implements PropertyStore {
+    public static class MemoryPropertyStore implements PropertyStore {
 
         private final ConcurrentHashMap<String,ArrayList<Node>> deadProperties = new ConcurrentHashMap<>();
 

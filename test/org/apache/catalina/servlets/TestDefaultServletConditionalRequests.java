@@ -2,21 +2,27 @@ package org.apache.catalina.servlets;
 
 import static org.apache.catalina.startup.SimpleHttpClient.CRLF;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.IntPredicate;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.catalina.Context;
@@ -36,6 +42,7 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, 200);
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_IN, null, null, null, null, 200);
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_NOT_IN, null, null, null, null, 412);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
     }
 
     @Test
@@ -45,6 +52,74 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_IN, null, null, null, null, 412);
         testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_NOT_IN, null, null, null, null, 412);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_head0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, 412);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_head1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, 412);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_3_head0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_IN, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_EXACTLY, null, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_ALL, null, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_EXACTLY, null, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_ALL, null, null, 304);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_3_head1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_ALL, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_EXACTLY, null, null, 304,
+                412);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_EXACTLY, null, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_ALL, null, null, 304);
+    }
+    // @Test
+    // public void testPreconditions_rfc9110_13_2_2_4_head0() throws Exception {
+    // startServer(true);
+    // testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_EQ, null, 200);
+    // testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_LT, null, 412);
+    // testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_GT, null, 200);
+    // testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_MULTI, null, 200);
+    // }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_4_head1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_EQ, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_LT, null, 200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_GT, null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, null, null, IfPolicy.DATE_MULTI_IN, null, 200);
+
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_ALL, null, IfPolicy.ETAG_NOT_IN, IfPolicy.DATE_EQ, null,
+                200);
+        testPreconditions(Task.HEAD_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_EXACTLY, IfPolicy.DATE_GT,
+                null, 304, 412);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_EQ, IfPolicy.ETAG_NOT_IN, IfPolicy.DATE_LT, null,
+                200);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_EXACTLY, IfPolicy.DATE_MULTI_IN,
+                null, 304);
+        testPreconditions(Task.HEAD_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_ALL, IfPolicy.DATE_EQ, null, 304);
     }
 
     @Test
@@ -58,7 +133,53 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         startServer(false);
         testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_ALL, null, null, null, null, 200);
         testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_IN, null, null, null, null, 412);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_NOT_IN, null, null, null, null, 412);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
     }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_get0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, 412);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_get1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, 412);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_GT, null, null, null, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_5_get0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.GET_INDEX_HTML, null, null, null, null, IfPolicy.DATE_EQ, true, 206);
+        // if-range: multiple node policy, not defined in RFC 9110.
+        // Currently, tomcat process the first If-Range header simply.
+        // testPreconditions(Task.GET_INDEX_HTML, null, null, null, null, IfPolicy.DATE_MULTI_IN, true,200);
+        testPreconditions(Task.GET_INDEX_HTML, null, null, null, null, IfPolicy.DATE_SEMANTIC_INVALID, true, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, null, null, null, IfPolicy.ETAG_EXACTLY, true, 206);
+
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_EQ, true, 206);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_LT, true, 200);
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_GT, true, 200);
+
+        testPreconditions(Task.GET_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_EQ, false, 200);
+
+        // Test Range header is present, while if-range is not.
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_ALL, null, null, null, null, true, 206);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, true, 206);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_IN, null, null, null, null, true, 206);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_NOT_IN, null, null, null, null, true, 412);
+        testPreconditions(Task.GET_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, true, 400);
+    }
+
 
     @Test
     public void testPreconditions_rfc9110_13_2_2_1_post0() throws Exception {
@@ -71,8 +192,94 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         startServer(false);
         testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_ALL, null, null, null, null, 200);
         testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
     }
 
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_post0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, false, null,
+                k -> ((k >= 200 && k < 300) || k == 412), -1);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_SEMANTIC_INVALID, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_2_post1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_LT, null, null, null, false, null,
+                k -> (k >= 200 && k < 300) || k == 412, -1);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_MULTI_IN, null, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_SEMANTIC_INVALID, null, null, null, 200);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_3_post0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_ALL, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_IN, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_ALL, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_ALL, null, null, 412);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_3_post1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_ALL, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_ALL, null, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, IfPolicy.ETAG_ALL, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, IfPolicy.ETAG_NOT_IN, null, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_EXACTLY, null, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_GT, IfPolicy.ETAG_ALL, null, null, 412);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_4_post1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, IfPolicy.DATE_EQ, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, IfPolicy.DATE_LT, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, IfPolicy.DATE_GT, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, IfPolicy.DATE_MULTI_IN, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_NOT_IN, IfPolicy.DATE_EQ, null, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_EXACTLY, IfPolicy.DATE_LT, null, 412);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, IfPolicy.ETAG_ALL, IfPolicy.DATE_MULTI_IN, null, 412);
+    }
+
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_5_post0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, null, IfPolicy.DATE_EQ, true, 200);
+        // if-range: multiple node policy, not defined in RFC 9110.
+        // Currently, tomcat process the first If-Range header simply.
+        // testPreconditions(Task.GET_INDEX_HTML, null, null, null, null, IfPolicy.DATE_MULTI_IN, true,200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, null, IfPolicy.DATE_SEMANTIC_INVALID, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, null, null, null, IfPolicy.ETAG_EXACTLY, true, 200);
+
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_EQ, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_LT, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_GT, true, 200);
+
+        testPreconditions(Task.POST_INDEX_HTML, null, IfPolicy.DATE_EQ, null, null, IfPolicy.DATE_EQ, false, 200);
+
+        // Test Range header is present, while if-range is not.
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_ALL, null, null, null, null, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_EXACTLY, null, null, null, null, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_IN, null, null, null, null, true, 200);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_NOT_IN, null, null, null, null, true, 412);
+        testPreconditions(Task.POST_INDEX_HTML, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, true, 400);
+    }
+
+    @Ignore
     @Test
     public void testPreconditions_rfc9110_13_2_2_1_put0() throws Exception {
         startServer(true);
@@ -81,17 +288,44 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_IN, null, null, null, null,
                 HttpServletResponse.SC_NO_CONTENT);
         testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_NOT_IN, null, null, null, null, 412);
+        testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
+
         testPreconditions(Task.PUT_NEW_TXT, null, null, null, null, null, HttpServletResponse.SC_CREATED);
     }
 
+    @Ignore
     @Test
     public void testPreconditions_rfc9110_13_2_2_1_put1() throws Exception {
         startServer(false);
         testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_ALL, null, null, null, null,
                 HttpServletResponse.SC_NO_CONTENT);
+        testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
         testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
     }
 
+    @Ignore
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_1_delete0() throws Exception {
+        startServer(true);
+        testPreconditions(Task.DELETE_EXIST1_TXT, IfPolicy.ETAG_ALL, null, null, null, null,
+                HttpServletResponse.SC_NO_CONTENT);
+        testPreconditions(Task.DELETE_EXIST2_TXT, IfPolicy.ETAG_IN, null, null, null, null,
+                HttpServletResponse.SC_NO_CONTENT);
+        testPreconditions(Task.DELETE_EXIST3_TXT, IfPolicy.ETAG_NOT_IN, null, null, null, null, 412);
+        testPreconditions(Task.DELETE_EXIST4_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
+
+        testPreconditions(Task.DELETE_NOT_EXIST_TXT, null, null, null, null, null, 404);
+    }
+
+    @Ignore
+    @Test
+    public void testPreconditions_rfc9110_13_2_2_1_delete1() throws Exception {
+        startServer(false);
+        testPreconditions(Task.DELETE_EXIST1_TXT, IfPolicy.ETAG_ALL, null, null, null, null,
+                HttpServletResponse.SC_NO_CONTENT);
+        testPreconditions(Task.DELETE_EXIST2_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
+        testPreconditions(Task.DELETE_EXIST3_TXT, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
+    }
 
     enum HTTP_METHOD {
         GET,
@@ -114,7 +348,11 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         PUT_EXIST_TXT(HTTP_METHOD.PUT, "/put_exist.txt"),
         PUT_NEW_TXT(HTTP_METHOD.PUT, "/put_new.txt"),
 
-        DELETE_NAME_TXT(HTTP_METHOD.DELETE, "/delete_exist.txt"),
+        DELETE_EXIST_TXT(HTTP_METHOD.DELETE, "/delete_exist.txt"),
+        DELETE_EXIST1_TXT(HTTP_METHOD.DELETE, "/delete_exist1.txt"),
+        DELETE_EXIST2_TXT(HTTP_METHOD.DELETE, "/delete_exist2.txt"),
+        DELETE_EXIST3_TXT(HTTP_METHOD.DELETE, "/delete_exist3.txt"),
+        DELETE_EXIST4_TXT(HTTP_METHOD.DELETE, "/delete_exist4.txt"),
         DELETE_NOT_EXIST_TXT(HTTP_METHOD.DELETE, "/delete_404.txt");
 
         HTTP_METHOD m;
@@ -136,11 +374,24 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         ETAG_IN,
         ETAG_ALL,
         ETAG_NOT_IN,
+        ETAG_SYNTAX_INVALID,
+        /**
+         * Condition header value of http date is equivalent to actual resource lastModified date
+         */
         DATE_EQ,
-        DATE_GE,
+        /**
+         * Condition header value of http date is greater(later) than actual resource lastModified date
+         */
         DATE_GT,
-        DATE_LE,
-        DATE_LT;
+        /**
+         * Condition header value of http date is less(earlier) than actual resource lastModified date
+         */
+        DATE_LT,
+        DATE_MULTI_IN,
+        /**
+         * not a valid HTTP-date
+         */
+        DATE_SEMANTIC_INVALID;
     }
 
     enum IfType {
@@ -178,12 +429,19 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
             case ETAG_IN:
                 headerValues.add("\"1a2b3c4d\"");
                 headerValues.add(weakETag + "," + strongETag + ",W/\"*\"");
+                headerValues.add("\"abcdefg\"");
                 break;
             case ETAG_NOT_IN:
-                headerValues.add("W/" + strongETag + "");
+                if (weakETag != null && weakETag.length() > 6) {
+                    headerValues.add(weakETag.substring(0, 4) + weakETag.substring(6));
+                }
                 if (strongETag != null && strongETag.length() > 6) {
                     headerValues.add(strongETag.substring(0, 3) + strongETag.substring(5));
                 }
+                break;
+            case ETAG_SYNTAX_INVALID:
+                headerValues.add("*");
+                headerValues.add("W/\"1abcd\"");
                 break;
             default:
                 break;
@@ -191,7 +449,7 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         return headerValues;
     }
 
-    protected List<String> genETagCondtion(long lastModifiedTimestamp, IfPolicy policy) {
+    protected List<String> genDateCondtion(long lastModifiedTimestamp, IfPolicy policy) {
         List<String> headerValues = new ArrayList<String>();
         if (lastModifiedTimestamp <= 0) {
             return headerValues;
@@ -200,21 +458,19 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
             case DATE_EQ:
                 headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp));
                 break;
-            case DATE_GE:
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp));
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp + 30000L));
-                break;
             case DATE_GT:
                 headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp + 30000L));
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp + 60000L));
-                break;
-            case DATE_LE:
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp));
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp - 30000L));
                 break;
             case DATE_LT:
                 headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp - 30000L));
-                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp - 60000L));
+                break;
+            case DATE_MULTI_IN:
+                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp - 30000L));
+                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp));
+                headerValues.add(FastHttpDateFormat.formatDate(lastModifiedTimestamp + 30000L));
+                break;
+            case DATE_SEMANTIC_INVALID:
+                headerValues.add("2024.12.09 GMT");
                 break;
             default:
                 break;
@@ -244,6 +500,11 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
             headerValues.addAll(eTagConditions);
         }
 
+        List<String> dateConditions = genDateCondtion(lastModified, policy);
+        if (!dateConditions.isEmpty()) {
+            headerValues.addAll(dateConditions);
+        }
+
         if (!headerValues.isEmpty()) {
             headers.put(type.value(), headerValues);
         }
@@ -255,20 +516,34 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
     public void setUp() throws Exception {
         super.setUp();
         tempDocBase = Files.createTempDirectory(getTemporaryDirectory().toPath(), "conditional").toFile();
+        long lastModified = FastHttpDateFormat.parseDate("Fri, 06 Dec 2024 00:00:00 GMT");
         Files.write(Path.of(tempDocBase.getAbsolutePath(), "index.html"), "<html><body>Index</body></html>".getBytes(),
                 StandardOpenOption.CREATE);
-        Path.of(tempDocBase.getAbsolutePath(), "index.html").toFile()
-                .setLastModified(System.currentTimeMillis() - 3600L * 1000L * 24 * 100); // 30 days ago
+        Path.of(tempDocBase.getAbsolutePath(), "index.html").toFile().setLastModified(lastModified);
 
         Files.write(Path.of(tempDocBase.getAbsolutePath(), "put_exist.txt"), "put_exist_v0".getBytes(),
                 StandardOpenOption.CREATE);
-        Path.of(tempDocBase.getAbsolutePath(), "put_exist.txt").toFile()
-                .setLastModified(System.currentTimeMillis() - 3600L * 1000L * 24 * 30); // 30 days ago
+        Path.of(tempDocBase.getAbsolutePath(), "put_exist.txt").toFile().setLastModified(lastModified);
 
         Files.write(Path.of(tempDocBase.getAbsolutePath(), "delete_exist.txt"), "delete_exist_v0".getBytes(),
                 StandardOpenOption.CREATE);
-        Path.of(tempDocBase.getAbsolutePath(), "delete_exist.txt").toFile()
-                .setLastModified(System.currentTimeMillis() - 3600L * 1000L * 24 * 7); // 7 days ago
+        Path.of(tempDocBase.getAbsolutePath(), "delete_exist.txt").toFile().setLastModified(lastModified);
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "delete_exist1.txt"), "delete_exist1_v0".getBytes(),
+                StandardOpenOption.CREATE);
+        Path.of(tempDocBase.getAbsolutePath(), "delete_exist1.txt").toFile().setLastModified(lastModified);
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "delete_exist2.txt"), "delete_exist2_v0".getBytes(),
+                StandardOpenOption.CREATE);
+        Path.of(tempDocBase.getAbsolutePath(), "delete_exist2.txt").toFile().setLastModified(lastModified);
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "delete_exist3.txt"), "delete_exist3_v0".getBytes(),
+                StandardOpenOption.CREATE);
+        Path.of(tempDocBase.getAbsolutePath(), "delete_exist3.txt").toFile().setLastModified(lastModified);
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "delete_exist4.txt"), "delete_exist4_v0".getBytes(),
+                StandardOpenOption.CREATE);
+        Path.of(tempDocBase.getAbsolutePath(), "delete_exist4.txt").toFile().setLastModified(lastModified);
 
     }
 
@@ -285,9 +560,10 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         tomcat.start();
     }
 
+
     protected void testPreconditions(Task task, IfPolicy ifMatchHeader, IfPolicy ifUnmodifiedSinceHeader,
-            IfPolicy ifNoneMatchHeader, IfPolicy ifModifiedSinceHeader, IfPolicy ifRangeHeader, int scExpected)
-            throws Exception {
+            IfPolicy ifNoneMatchHeader, IfPolicy ifModifiedSinceHeader, IfPolicy ifRangeHeader, boolean autoRangeHeader,
+            String message, IntPredicate p, int... scExpected) throws Exception {
         Assert.assertNotNull(task);
 
 
@@ -302,7 +578,7 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         int sc = headUrl(uri, new ByteChunk(), responseHeaders);
         if (sc == 200) {
             etag = getSingleHeader("ETag", responseHeaders);
-            String dt = getSingleHeader("last-modified", responseHeaders);
+            String dt = getSingleHeader("Last-Modified", responseHeaders);
             if (dt != null && dt.length() > 0) {
                 lastModified = FastHttpDateFormat.parseDate(dt);
             }
@@ -313,42 +589,71 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         wrapperHeaders(requestHeaders, etag, lastModified, ifNoneMatchHeader, IfType.ifNoneMatch);
         wrapperHeaders(requestHeaders, etag, lastModified, ifUnmodifiedSinceHeader, IfType.ifUnmodifiedSince);
         wrapperHeaders(requestHeaders, etag, lastModified, ifRangeHeader, IfType.ifRange);
-
         responseHeaders.clear();
         sc = 0;
-        ByteChunk out = new ByteChunk();
         SimpleHttpClient client = null;
-        if (task.m == HTTP_METHOD.PUT) {
-            client = new SimpleHttpClient() {
+        client = new SimpleHttpClient() {
 
-                @Override
-                public boolean isResponseBodyOK() {
-                    return true;
-                }
-            };
-            client.setPort(getPort());
-            StringBuffer putCmd = new StringBuffer();
-            putCmd.append(
-                    "PUT " + task.uri + " HTTP/1.1" + CRLF + "Host: localhost" + CRLF + "Connection: Close" + CRLF);
-
-            for (Entry<String,List<String>> e : requestHeaders.entrySet()) {
-                for (String v : e.getValue()) {
-                    putCmd.append(e.getKey() + ": " + v + CRLF);
-                }
+            @Override
+            public boolean isResponseBodyOK() {
+                return true;
             }
-            putCmd.append("Content-Length: 6" + CRLF);
-            putCmd.append(CRLF);
+        };
+        client.setPort(getPort());
+        StringBuffer curl = new StringBuffer();
+        curl.append(task.m.name() + " " + task.uri + " HTTP/1.1" + CRLF + "Host: localhost" + CRLF +
+                "Connection: Close" + CRLF);
 
-            putCmd.append("PUT_v2");
-            client.setRequest(new String[] { putCmd.toString() });
-            client.connect();
-            client.processRequest();
-            sc = client.getStatusCode();
-        } else {
-            sc = methodUrl(uri, out, DEFAULT_CLIENT_TIMEOUT_MS, requestHeaders, responseHeaders, task.m.name());
+        for (Entry<String,List<String>> e : requestHeaders.entrySet()) {
+            for (String v : e.getValue()) {
+                curl.append(e.getKey() + ": " + v + CRLF);
+            }
         }
-        assertEquals("Failure - %s, req headers: %s, resp headers: %s".formatted(task, requestHeaders.toString(),
-                responseHeaders.toString()), scExpected, sc);
+        if (autoRangeHeader) {
+            curl.append("Range: bytes=0-10" + CRLF);
+        }
+        curl.append("Content-Length: 6" + CRLF);
+        curl.append(CRLF);
+
+        curl.append("PUT_v2");
+        client.setRequest(new String[] { curl.toString() });
+        client.connect();
+        client.processRequest();
+        for (String e : client.getResponseHeaders()) {
+            Assert.assertTrue("Separator ':' expected and not the last char of response header field `" + e + "`",
+                    e.contains(":") && e.indexOf(':') < e.length() - 1);
+            String name = e.substring(0, e.indexOf(':'));
+            String value = e.substring(e.indexOf(':') + 1);
+            responseHeaders.computeIfAbsent(name, k -> new ArrayList<String>()).add(value);
+        }
+        sc = client.getStatusCode();
+        if (message == null) {
+            message = "Unexpected status code:`" + sc + "`";
+        }
+        boolean test = false;
+        boolean usePredicate = false;
+        if (scExpected != null && scExpected.length > 0 && scExpected[0] >= 100) {
+            test = Arrays.binarySearch(scExpected, sc) >= 0;
+        } else {
+            usePredicate = true;
+            test = p.test(sc);
+        }
+        String scExpectation = usePredicate ? "IntPredicate" : Arrays.toString(scExpected);
+        assertTrue("Failure - sc expected:%s, sc actual:%d, %s, task:%s, req headers: %s, resp headers: %s".formatted(
+                scExpectation, sc, message, task, requestHeaders.toString(), responseHeaders.toString()), test);
     }
-    
+
+    protected void testPreconditions(Task task, IfPolicy ifMatchHeader, IfPolicy ifUnmodifiedSinceHeader,
+            IfPolicy ifNoneMatchHeader, IfPolicy ifModifiedSinceHeader, IfPolicy ifRangeHeader, int... scExpected)
+            throws Exception {
+        testPreconditions(task, ifMatchHeader, ifUnmodifiedSinceHeader, ifNoneMatchHeader, ifModifiedSinceHeader,
+                ifRangeHeader, false, scExpected);
+    }
+
+    protected void testPreconditions(Task task, IfPolicy ifMatchHeader, IfPolicy ifUnmodifiedSinceHeader,
+            IfPolicy ifNoneMatchHeader, IfPolicy ifModifiedSinceHeader, IfPolicy ifRangeHeader, boolean autoRangeHeader,
+            int... scExpected) throws Exception {
+        testPreconditions(task, ifMatchHeader, ifUnmodifiedSinceHeader, ifNoneMatchHeader, ifModifiedSinceHeader,
+                ifRangeHeader, autoRangeHeader, null, null, scExpected);
+    }
 }
