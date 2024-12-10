@@ -1,8 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.catalina.servlets;
-
-import static org.apache.catalina.startup.SimpleHttpClient.CRLF;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -10,13 +22,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -303,7 +313,7 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         testPreconditions(Task.PUT_EXIST_TXT, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
     }
 
-    @Ignore
+//    @Ignore
     @Test
     public void testPreconditions_rfc9110_13_2_2_1_delete0() throws Exception {
         startServer(true);
@@ -317,14 +327,14 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         testPreconditions(Task.DELETE_NOT_EXIST_TXT, null, null, null, null, null, 404);
     }
 
-    @Ignore
+//    @Ignore
     @Test
     public void testPreconditions_rfc9110_13_2_2_1_delete1() throws Exception {
         startServer(false);
         testPreconditions(Task.DELETE_EXIST1_TXT, IfPolicy.ETAG_ALL, null, null, null, null,
                 HttpServletResponse.SC_NO_CONTENT);
-        testPreconditions(Task.DELETE_EXIST2_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
         testPreconditions(Task.DELETE_EXIST3_TXT, IfPolicy.ETAG_EXACTLY, null, null, null, null, 412);
+        testPreconditions(Task.DELETE_EXIST2_TXT, IfPolicy.ETAG_SYNTAX_INVALID, null, null, null, null, 400);
     }
 
     enum HTTP_METHOD {
@@ -432,11 +442,11 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
                 headerValues.add("\"abcdefg\"");
                 break;
             case ETAG_NOT_IN:
-                if (weakETag != null && weakETag.length() > 6) {
-                    headerValues.add(weakETag.substring(0, 4) + weakETag.substring(6));
+                if (weakETag != null && weakETag.length() > 8) {
+                    headerValues.add(weakETag.substring(0, 3) + "XXXXX"+weakETag.substring(8));
                 }
                 if (strongETag != null && strongETag.length() > 6) {
-                    headerValues.add(strongETag.substring(0, 3) + strongETag.substring(5));
+                    headerValues.add(strongETag.substring(0, 1) + "XXXXX"+strongETag.substring(6));
                 }
                 break;
             case ETAG_SYNTAX_INVALID:
@@ -601,19 +611,19 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
         };
         client.setPort(getPort());
         StringBuffer curl = new StringBuffer();
-        curl.append(task.m.name() + " " + task.uri + " HTTP/1.1" + CRLF + "Host: localhost" + CRLF +
-                "Connection: Close" + CRLF);
+        curl.append(task.m.name() + " " + task.uri + " HTTP/1.1" + SimpleHttpClient.CRLF + "Host: localhost" + SimpleHttpClient.CRLF +
+                "Connection: Close" + SimpleHttpClient.CRLF);
 
         for (Entry<String,List<String>> e : requestHeaders.entrySet()) {
             for (String v : e.getValue()) {
-                curl.append(e.getKey() + ": " + v + CRLF);
+                curl.append(e.getKey() + ": " + v + SimpleHttpClient.CRLF);
             }
         }
         if (autoRangeHeader) {
-            curl.append("Range: bytes=0-10" + CRLF);
+            curl.append("Range: bytes=0-10" + SimpleHttpClient.CRLF);
         }
-        curl.append("Content-Length: 6" + CRLF);
-        curl.append(CRLF);
+        curl.append("Content-Length: 6" + SimpleHttpClient.CRLF);
+        curl.append(SimpleHttpClient.CRLF);
 
         curl.append("PUT_v2");
         client.setRequest(new String[] { curl.toString() });
@@ -639,8 +649,11 @@ public class TestDefaultServletConditionalRequests extends TomcatBaseTest {
             test = p.test(sc);
         }
         String scExpectation = usePredicate ? "IntPredicate" : Arrays.toString(scExpected);
-        assertTrue("Failure - sc expected:%s, sc actual:%d, %s, task:%s, req headers: %s, resp headers: %s".formatted(
-                scExpectation, sc, message, task, requestHeaders.toString(), responseHeaders.toString()), test);
+        Assert.assertTrue(
+                "Failure - sc expected:%s, sc actual:%d, %s, task:%s, \ntarget resource:(%s,%s), \nreq headers: %s, \nresp headers: %s"
+                        .formatted(scExpectation, sc, message, task, etag, FastHttpDateFormat.formatDate(lastModified),
+                                requestHeaders.toString(), responseHeaders.toString()),
+                test);
     }
 
     protected void testPreconditions(Task task, IfPolicy ifMatchHeader, IfPolicy ifUnmodifiedSinceHeader,
