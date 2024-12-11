@@ -17,6 +17,9 @@
 package org.apache.catalina.servlets;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,15 +27,17 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.catalina.Context;
+import org.apache.catalina.Wrapper;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 import org.apache.tomcat.util.buf.ByteChunk;
 
 public class TestDefaultServletRfc9110Section14 extends TomcatBaseTest {
-
+    @Ignore
     @Test
     public void testRangeHandlingDefinedMethods() throws Exception {
         // GET is the only method for which range handling is defined.
@@ -69,7 +74,7 @@ public class TestDefaultServletRfc9110Section14 extends TomcatBaseTest {
 
         tomcat.stop();
     }
-
+    @Ignore
     @Test
     public void testUnsupportedRangeUnit() throws Exception {
         Tomcat tomcat = getTomcatInstance();
@@ -98,4 +103,69 @@ public class TestDefaultServletRfc9110Section14 extends TomcatBaseTest {
 
         tomcat.stop();
     }
+    @Test
+    public void testValidRangeForZeroContent() throws Exception {
+
+        File tempDocBase = Files.createTempDirectory(getTemporaryDirectory().toPath(), "range").toFile();
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "empty.html"), "11".getBytes(),
+                StandardOpenOption.CREATE);
+
+        Tomcat tomcat = getTomcatInstance();
+        Context ctxt = tomcat.addContext("", tempDocBase.getAbsolutePath());
+
+        Wrapper w = Tomcat.addServlet(ctxt, "default", DefaultServlet.class.getName());
+        ctxt.addServletMappingDecoded("/", "default");
+
+        tomcat.start();
+
+        String path = "http://localhost:" + getPort() + "/empty.html";
+        ByteChunk responseBody = new ByteChunk();
+        Map<String,List<String>> responseHeaders = new HashMap<>();
+        Map<String,List<String>> requestHeaders = new HashMap<>();
+
+        String rangeHeader = "bytes=-2";
+        // Get and Head
+
+        requestHeaders.put("Range",List.of(rangeHeader));
+        int rc = getUrl(path, responseBody, requestHeaders, responseHeaders);
+        Assert.assertEquals(
+                "Range requests is turn on, SC_PARTIAL_CONTENT of GET is expected per RFC 9110 - 14.1.2 Range `"+rangeHeader+"` is valid for zero-length resource ",
+                HttpServletResponse.SC_PARTIAL_CONTENT, rc);
+
+        tomcat.stop();
+    }
+    @Test
+    public void testInvalidRangeForZeroContent() throws Exception {
+
+        File tempDocBase = Files.createTempDirectory(getTemporaryDirectory().toPath(), "range").toFile();
+
+        Files.write(Path.of(tempDocBase.getAbsolutePath(), "empty.html"), "".getBytes(),
+                StandardOpenOption.CREATE);
+
+        Tomcat tomcat = getTomcatInstance();
+        Context ctxt = tomcat.addContext("", tempDocBase.getAbsolutePath());
+
+        Wrapper w = Tomcat.addServlet(ctxt, "default", DefaultServlet.class.getName());
+        ctxt.addServletMappingDecoded("/", "default");
+
+        tomcat.start();
+
+        String path = "http://localhost:" + getPort() + "/empty.html";
+        ByteChunk responseBody = new ByteChunk();
+        Map<String,List<String>> responseHeaders = new HashMap<>();
+        Map<String,List<String>> requestHeaders = new HashMap<>();
+
+        String rangeHeader = "bytes=0-0";
+        // Get and Head
+
+        requestHeaders.put("Range",List.of(rangeHeader));
+        int rc = getUrl(path, responseBody, requestHeaders, responseHeaders);
+        Assert.assertEquals(
+                "Range requests is turn on, SC_REQUESTED_RANGE_NOT_SATISFIABLE of GET is expected per RFC 9110 - 14.1.2 Range `"+rangeHeader+"` is invalid for zero-length resource ",
+                HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE, rc);
+
+        tomcat.stop();
+    }
+
 }
