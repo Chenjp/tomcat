@@ -727,78 +727,42 @@ public class DefaultServlet extends HttpServlet {
      */
     protected boolean checkIfHeaders(HttpServletRequest request, HttpServletResponse response, WebResource resource)
             throws IOException {
-        String ifMatchHeader = request.getHeader("If-Match");
-        String ifUnmodifiedSinceHeader = request.getHeader("If-Unmodified-Since");
         String ifNoneMatchHeader = request.getHeader("If-None-Match");
-        String ifModifiedSinceHeader = request.getHeader("If-Modified-Since");
-        String ifRangeHeader = request.getHeader("If-Range");
-        String rangeHeader = request.getHeader("Range");
 
         // RFC9110 #13.3.2 defines preconditions evaluation order
-        int next = 1;
-        while (next < 6) {
-            switch (next) {
-                case 1:
-                    if (ifMatchHeader != null) {
-                        if (checkIfMatch(request, response, resource)) {
-                            next = 3;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        next = 2;
-                    }
-                    break;
-                case 2:
-                    if (ifUnmodifiedSinceHeader != null) {
-                        if (checkIfUnmodifiedSince(request, response, resource)) {
-                            next = 3;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        next = 3;
-                    }
-                    break;
-                case 3:
-                    if (ifNoneMatchHeader != null) {
-                        if (checkIfNoneMatch(request, response, resource)) {
-                            next = 5;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        next = 4;
-                    }
-                    break;
-                case 4:
-                    if (("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod())) &&
-                            ifNoneMatchHeader == null && ifModifiedSinceHeader != null) {
-                        if (checkIfModifiedSince(request, response, resource)) {
-                            next = 5;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        next = 5;
-                    }
-                    break;
-                case 5:
-                    if ("GET".equals(request.getMethod()) && ifRangeHeader != null && rangeHeader != null) {
-                        if (checkIfRange(request, response, resource) && determineRangeRequestsApplicable(resource)) {
-                            // Partial content, precondition passed
-                            return true;
-                        } else {
-                            // ignore the Range header field
-                            return true;
-                        }
-                    } else {
-                        return true;
-                    }
-                default:
-                    return true;
+        int next = 1; // A one way stage indicator
+        if (request.getHeader("If-Match") != null) {
+            if (!checkIfMatch(request, response, resource)) {
+                return false;
+            }
+            next = 3;
+        } else {
+            next = 2;
+        }
+
+        if (next <= 2 && request.getHeader("If-Unmodified-Since") != null) {
+            if (!checkIfUnmodifiedSince(request, response, resource)) {
+                return false;
             }
         }
+
+        if (next <= 3 && ifNoneMatchHeader != null) {
+            if (!checkIfNoneMatch(request, response, resource)) {
+                return false;
+            } else {
+                next = 5;
+            }
+        }
+
+        if (next <= 4 && ("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod())) &&
+                ifNoneMatchHeader == null && request.getHeader("If-Modified-Since") != null) {
+            if (!checkIfModifiedSince(request, response, resource)) {
+                return false;
+            }
+        }
+
+        // If-Range is a special precondition: its evaluate result impacts range-requests only, then is deferred to the
+        // range requests handling.
         return true;
     }
 
