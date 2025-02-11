@@ -95,6 +95,16 @@ public class EmptyResourceSet extends LifecycleBase implements WebResourceSet {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation always returns false.
+     */
+    @Override
+    public boolean write(String path, long position, long count, long newLength, InputStream is, boolean overwrite) {
+        return false;
+    }
+
     @Override
     public void setRoot(WebResourceRoot root) {
         this.root = root;

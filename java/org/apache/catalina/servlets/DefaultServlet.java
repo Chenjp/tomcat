@@ -27,7 +27,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.io.Serializable;
 import java.io.StringReader;
@@ -52,7 +51,6 @@ import javax.xml.transform.stream.StreamSource;
 
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.ServletResponse;
@@ -149,12 +147,6 @@ public class DefaultServlet extends HttpServlet {
      * MIME multipart separation string
      */
     protected static final String mimeSeparation = "CATALINA_MIME_BOUNDARY";
-
-    /**
-     * Size of file transfer buffer in bytes.
-     */
-    protected static final int BUFFER_SIZE = 4096;
-
 
     // ----------------------------------------------------- Instance Variables
 
@@ -608,14 +600,16 @@ public class DefaultServlet extends HttpServlet {
             // resource - create a temp. file on the local filesystem to
             // perform this operation
             // Assume just one range is specified for now
+            resourceInputStream = req.getInputStream();
+            boolean writeResult = false;
             if (range == IGNORE) {
-                resourceInputStream = req.getInputStream();
+                writeResult = resources.write(path, resourceInputStream, true);
             } else {
-                tempContentFile = executePartialPut(req, range, path);
-                resourceInputStream = new FileInputStream(tempContentFile);
+                writeResult = resources.write(path, range.getStart(), (range.getEnd() - range.getStart() + 1),
+                        range.getLength(), resourceInputStream);
             }
 
-            if (resources.write(path, resourceInputStream, true)) {
+            if (writeResult) {
                 if (resource.exists()) {
                     resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 } else {
@@ -641,62 +635,6 @@ public class DefaultServlet extends HttpServlet {
             }
         }
     }
-
-
-    /**
-     * Handle a partial PUT. New content specified in request is appended to existing content in oldRevisionContent (if
-     * present). This code does not support simultaneous partial updates to the same resource.
-     *
-     * @param req   The Servlet request
-     * @param range The range that will be written
-     * @param path  The path
-     *
-     * @return the associated file object
-     *
-     * @throws IOException an IO error occurred
-     */
-    protected File executePartialPut(HttpServletRequest req, ContentRange range, String path) throws IOException {
-
-        // Append data specified in ranges to existing content for this
-        // resource - create a temp. file on the local filesystem to
-        // perform this operation
-        File tempDir = (File) getServletContext().getAttribute(ServletContext.TEMPDIR);
-        File contentFile = File.createTempFile("put-part-", null, tempDir);
-
-        try (RandomAccessFile randAccessContentFile = new RandomAccessFile(contentFile, "rw")) {
-
-            WebResource oldResource = resources.getResource(path);
-
-            // Copy data in oldRevisionContent to contentFile
-            if (oldResource.isFile()) {
-                try (BufferedInputStream bufOldRevStream =
-                        new BufferedInputStream(oldResource.getInputStream(), BUFFER_SIZE)) {
-
-                    int numBytesRead;
-                    byte[] copyBuffer = new byte[BUFFER_SIZE];
-                    while ((numBytesRead = bufOldRevStream.read(copyBuffer)) != -1) {
-                        randAccessContentFile.write(copyBuffer, 0, numBytesRead);
-                    }
-
-                }
-            }
-
-            randAccessContentFile.setLength(range.getLength());
-
-            // Append data in request input stream to contentFile
-            randAccessContentFile.seek(range.getStart());
-            int numBytesRead;
-            byte[] transferBuffer = new byte[BUFFER_SIZE];
-            try (BufferedInputStream requestBufInStream = new BufferedInputStream(req.getInputStream(), BUFFER_SIZE)) {
-                while ((numBytesRead = requestBufInStream.read(transferBuffer)) != -1) {
-                    randAccessContentFile.write(transferBuffer, 0, numBytesRead);
-                }
-            }
-        }
-
-        return contentFile;
-    }
-
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -984,13 +922,11 @@ public class DefaultServlet extends HttpServlet {
         String outputEncoding = response.getCharacterEncoding();
         Charset charset = B2CConverter.getCharset(outputEncoding);
         boolean conversionRequired;
-        /*
-         * The test below deliberately uses != to compare two Strings. This is because the code is looking to see if the
+        /* The test below deliberately uses != to compare two Strings. This is because the code is looking to see if the
          * default character encoding has been returned because no explicit character encoding has been defined. There
          * is no clean way of doing this via the Servlet API. It would be possible to add a Tomcat specific API but that
          * would require quite a bit of code to get to the Tomcat specific request object that may have been wrapped.
-         * The != test is a (slightly hacky) quick way of doing this.
-         */
+         * The != test is a (slightly hacky) quick way of doing this. */
         boolean outputEncodingSpecified = outputEncoding != org.apache.coyote.Constants.DEFAULT_BODY_CHARSET.name() &&
                 outputEncoding != resources.getContext().getResponseCharacterEncoding();
         if (!usingPrecompressedVersion && isText(contentType) && outputEncodingSpecified &&
@@ -1174,9 +1110,7 @@ public class DefaultServlet extends HttpServlet {
     }
 
 
-    /*
-     * Code borrowed heavily from Jasper's EncodingDetector
-     */
+    /* Code borrowed heavily from Jasper's EncodingDetector */
     private static Charset processBom(InputStream is, boolean stripBom) throws IOException {
         // Java supported character sets do not use BOMs longer than 4 bytes
         byte[] bom = new byte[4];
@@ -1272,16 +1206,14 @@ public class DefaultServlet extends HttpServlet {
                 // Invalid range
                 return false;
             }
-            /*
-             * See https://www.rfc-editor.org/rfc/rfc9110.html#name-range and
+            /* See https://www.rfc-editor.org/rfc/rfc9110.html#name-range and
              * https://www.rfc-editor.org/rfc/rfc9110.html#status.416
              *
              * The server MAY ignore or reject Range headers with:
              *
              * - "Many" (undefined) small ranges not in ascending order - not currently enforced.
              *
-             * - More than two overlapping ranges (enforced)
-             */
+             * - More than two overlapping ranges (enforced) */
             for (long[] r : rangeContext) {
                 long s2 = r[0];
                 long e2 = r[1];
@@ -1499,14 +1431,12 @@ public class DefaultServlet extends HttpServlet {
         // Evaluate If-Range
         if (!checkIfRange(request, response, resource)) {
             if (response.isCommitted()) {
-                /*
-                 * Ideally, checkIfRange() would be changed to return Boolean so the three states (satisfied,
+                /* Ideally, checkIfRange() would be changed to return Boolean so the three states (satisfied,
                  * unsatisfied and error) could each be communicated via the return value. There isn't a backwards
                  * compatible way to do that that doesn't involve changing the method name and there are benefits to
                  * retaining the consistency of the existing method name pattern. Hence, this 'trick'. For the error
                  * state, checkIfRange() will call response.sendError() which will commit the response which this method
-                 * can then detect.
-                 */
+                 * can then detect. */
                 return null;
             }
             // No error but If-Range not satisfied
@@ -1998,9 +1928,7 @@ public class DefaultServlet extends HttpServlet {
             }
         }
 
-        /*
-         * Open and read in file in one fell swoop to reduce chance chance of leaving handle open.
-         */
+        /* Open and read in file in one fell swoop to reduce chance chance of leaving handle open. */
         if (globalXsltFile != null) {
             File f = validateGlobalXsltFile();
             if (f != null) {

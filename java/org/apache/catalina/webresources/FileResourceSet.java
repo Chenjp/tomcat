@@ -159,6 +159,12 @@ public class FileResourceSet extends AbstractFileResourceSet {
     }
 
     @Override
+    public boolean write(String path, long position, long count, long newLength, InputStream is, boolean overwrite) {
+        checkPath(path);
+        return false;
+    }
+
+    @Override
     protected void checkType(File file) {
         if (file.isFile() == false) {
             throw new IllegalArgumentException(

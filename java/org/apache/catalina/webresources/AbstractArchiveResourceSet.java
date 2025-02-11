@@ -196,6 +196,17 @@ public abstract class AbstractArchiveResourceSet extends AbstractResourceSet {
     }
 
     @Override
+    public boolean write(String path, long position, long count, long newLength, InputStream is, boolean overwrite) {
+        checkPath(path);
+
+        if (is == null) {
+            throw new NullPointerException(sm.getString("dirResourceSet.writeNpe"));
+        }
+
+        return false;
+    }
+
+    @Override
     public final WebResource getResource(String path) {
         checkPath(path);
         String webAppMount = getWebAppMount();

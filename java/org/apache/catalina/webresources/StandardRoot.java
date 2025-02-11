@@ -188,6 +188,19 @@ public class StandardRoot extends LifecycleMBeanBase implements WebResourceRoot 
         return writeResult;
     }
 
+    @Override
+    public boolean write(String path, long position, long count, long newLength, InputStream is) {
+        path = validate(path);
+
+        boolean writeResult = main.write(path, position, count, newLength, is,true);
+
+        if (writeResult && isCachingAllowed()) {
+            // Remove the entry from the cache so the new resource is visible
+            cache.removeCacheEntry(path);
+        }
+
+        return writeResult;
+    }
     private boolean preResourceExists(String path) {
         for (WebResourceSet webResourceSet : preResources) {
             WebResource webResource = webResourceSet.getResource(path);

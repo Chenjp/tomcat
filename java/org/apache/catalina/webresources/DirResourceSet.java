@@ -20,8 +20,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -254,8 +253,25 @@ public class DirResourceSet extends AbstractFileResourceSet implements WebResour
         }
     }
 
-    @Override
-    public boolean write(String path, InputStream is, boolean overwrite) {
+    private static final int DEFAULT_BUFFER_SIZE = 16384; // Same with Files.DEFAULT_BUFFER_SIZE
+
+    /**
+     * Writes data into target file. Fully writes and Partially writes are supported.
+     *
+     * @param path         target file path
+     * @param position     The file position at which the transfer is to begin; must be non-negative
+     * @param count        The maximum number of bytes to be written; must be non-negative
+     * @param setNewLength whether explicitly specify the new length of the target file
+     * @param newLength    The new length in bytes of the resource; must be non-negative
+     * @param is           The InputStream that will provide the content for the new Resource.
+     * @param isFull       {@code} true} if discard original contents, otherwise performs partial writes.
+     * @param overwrite    If <code>true</code> and the resource already exists it will be overwritten. If
+     *                         <code>false</code> and the resource already exists the write will fail.
+     *
+     * @return {@code true} if write successfully.
+     */
+    private boolean write0(String path, long position, long count, boolean setNewLength, long newLength, InputStream is,
+            boolean isFull, boolean overwrite) {
         checkPath(path);
 
         if (is == null) {
@@ -278,11 +294,9 @@ public class DirResourceSet extends AbstractFileResourceSet implements WebResour
         }
 
         File dest = null;
-        /*
-         * Lock the path for writing until the write is complete. The lock prevents concurrent reads and writes (e.g.
+        /* Lock the path for writing until the write is complete. The lock prevents concurrent reads and writes (e.g.
          * HTTP GET and PUT / DELETE) for the same path causing corruption of the FileResource where some of the fields
-         * are set as if the file exists and some as set as if it does not.
-         */
+         * are set as if the file exists and some as set as if it does not. */
         ResourceLock lock = lockForWrite(path);
         try {
             dest = file(path.substring(webAppMount.length()), false);
@@ -294,13 +308,27 @@ public class DirResourceSet extends AbstractFileResourceSet implements WebResour
                 return false;
             }
 
-            try {
-                if (overwrite) {
-                    Files.copy(is, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            try (RandomAccessFile naf = new RandomAccessFile(dest, "rw")) {
+                if (isFull) {
+                    naf.setLength(0);
+                    naf.seek(0);
                 } else {
-                    Files.copy(is, dest.toPath());
+                    if (setNewLength) {
+                        naf.setLength(newLength);
+                    }
+                    naf.seek(position);
                 }
-            } catch (IOException ioe) {
+                byte[] buf = new byte[DEFAULT_BUFFER_SIZE];
+                int n = 0;
+                while (count > 0 && (n = is.read(buf)) >= 0) {
+                    if (n > count) {
+                        n = (int) count;
+                    }
+                    naf.write(buf, 0, n);
+                    count -= n;
+                }
+                naf.close();
+            } catch (IllegalArgumentException | SecurityException | IOException e) {
                 return false;
             }
 
@@ -308,6 +336,16 @@ public class DirResourceSet extends AbstractFileResourceSet implements WebResour
         } finally {
             unlockForWrite(lock);
         }
+    }
+
+    @Override
+    public boolean write(String path, InputStream is, boolean overwrite) {
+        return write0(path, 0, Long.MAX_VALUE, false, 0L, is, true, overwrite);
+    }
+
+    @Override
+    public boolean write(String path, long position, long count, long newLength, InputStream is, boolean overwrite) {
+        return write0(path, position, count, true, newLength, is, false, overwrite);
     }
 
     @Override

@@ -158,7 +158,7 @@ public interface WebResourceRoot extends Lifecycle {
     boolean mkdir(String path);
 
     /**
-     * Create a new resource at the requested path using the provided InputStream.
+     * Writes to a resource at the requested path using the provided InputStream, creates a new resource if absent.
      *
      * @param path      The path to be used for the new Resource. It is relative to the root of the web application and
      *                      must start with '/'.
@@ -169,6 +169,21 @@ public interface WebResourceRoot extends Lifecycle {
      * @return <code>true</code> if and only if the new Resource is written
      */
     boolean write(String path, InputStream is, boolean overwrite);
+
+    /**
+     * Writes up to {@code count} bytes to a resource at the requested path using the provided InputStream, creates a
+     * new resource if absent. Underlying overwrite mode is {@code true}.
+     *
+     * @param path      The path to be used for the new Resource. It is relative to the root of the web application and
+     *                      must start with '/'.
+     * @param position  The file position at which the transfer is to begin; must be non-negative
+     * @param count     The maximum number of bytes to be written; must be non-negative
+     * @param newLength The new length in bytes of the resource; must be non-negative
+     * @param is        The InputStream that will provide the content for the new Resource.
+     *
+     * @return <code>true</code> if and only if the new Resource is written
+     */
+    boolean write(String path, long position, long count, long newLength, InputStream is);
 
     /**
      * Creates a new {@link WebResourceSet} for this {@link WebResourceRoot} based on the provided parameters.
