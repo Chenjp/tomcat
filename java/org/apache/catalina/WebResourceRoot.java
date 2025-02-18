@@ -159,6 +159,8 @@ public interface WebResourceRoot extends Lifecycle {
 
     /**
      * Writes to a resource at the requested path using the provided InputStream, creates a new resource if absent.
+     * <p>
+     * This method blocks until ends of stream {@code is} is detected, or IO failure occurs.
      *
      * @param path      The path to be used for the new Resource. It is relative to the root of the web application and
      *                      must start with '/'.
@@ -166,22 +168,27 @@ public interface WebResourceRoot extends Lifecycle {
      * @param overwrite If <code>true</code> and the resource already exists it will be overwritten. If
      *                      <code>false</code> and the resource already exists the write will fail.
      *
-     * @return <code>true</code> if and only if the new Resource is written
+     * @return <code>true</code> if and only if the specified content from the source input stream is written to the
+     *             path resource successfully
      */
     boolean write(String path, InputStream is, boolean overwrite);
 
     /**
      * Writes up to {@code count} bytes to a resource at the requested path using the provided InputStream, creates a
      * new resource if absent. Underlying overwrite mode is {@code true}.
+     * <p>
+     * This method blocks until the requested {@code count} bytes have been written, ends of stream {@code is} is
+     * detected, or even IO failure occurs.
      *
      * @param path      The path to be used for the new Resource. It is relative to the root of the web application and
      *                      must start with '/'.
      * @param position  The file position at which the transfer is to begin; must be non-negative
      * @param count     The maximum number of bytes to be written; must be non-negative
      * @param newLength The new length in bytes of the resource; must be non-negative
-     * @param is        The InputStream that will provide the content for the new Resource.
+     * @param is        The InputStream that will provide the content
      *
-     * @return <code>true</code> if and only if the new Resource is written
+     * @return <code>true</code> if and only if the specified content from the source input stream is written to the
+     *             path resource successfully
      */
     boolean write(String path, long position, long count, long newLength, InputStream is);
 

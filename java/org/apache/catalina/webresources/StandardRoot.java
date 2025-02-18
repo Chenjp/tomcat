@@ -192,6 +192,9 @@ public class StandardRoot extends LifecycleMBeanBase implements WebResourceRoot 
     public boolean write(String path, long position, long count, long newLength, InputStream is) {
         path = validate(path);
 
+        if(position<0||count<0||newLength<0) {
+            throw new IllegalArgumentException();
+        }
         boolean writeResult = main.write(path, position, count, newLength, is,true);
 
         if (writeResult && isCachingAllowed()) {
