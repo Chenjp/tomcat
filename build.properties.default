@@ -36,6 +36,9 @@ version.dev=-dev
 
 # ----- Build tools -----
 ant.version.required=1.10.2
+# Which tool to use for building Windows installer
+# on unix platform: wine or makensis.
+nsis.tool=wine
 
 # ----- Build control flags -----
 compile.debug=true
@@ -60,6 +63,7 @@ execute.spotbugs=false
 # works better for Tomcat.
 javadoc.failonerror=true
 javadoc.failonwarning=false
+javadoc.locale=en_US
 
 # ----- Test configuration -----
 execute.test.nio=true

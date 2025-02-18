@@ -109,7 +109,7 @@
     <changelog>
       <scode>
         This release contains all of the changes up to and including those in
-        Apache Tomcat 11.0.3 plus the additional changes listed below. (markt)
+        Apache Tomcat 11.0.4 plus the additional changes listed below. (markt)
       </scode>
       <update>
         The minimum Java version has been updated to Java 21. (markt)
@@ -143,6 +143,12 @@
         of <strong>Context</strong> from <code>decode</code> to
         <code>reject</code>. (markt)
       </update>
+      <fix>
+        When searching the web application class loader for a resource or
+        resources by name, align the behaviour with the JRE class loaders and
+        always return <code>null</code> if the provided name starts with
+        <code>/</code>. (markt)
+      </fix>
       <!-- Entries for backport and removal before 12.0.0-M1 below this line -->
     </changelog>
   </subsection>
@@ -192,8 +198,12 @@
       </update>
       <!-- Entries for backport and removal before 12.0.0-M1 below this line -->
       <add>
-        Add <code>org.apache.juli.JsonFormatter</code> to format log as one
-        line JSON documents. (remm)
+        Add <code>makensis</code> as an option for building the Installer for
+        Windows on non-Windows platforms. (rjung)
+      </add>
+      <add>
+        Explicitly set the locale to be used for Javadoc. For official releases,
+        this locale will be English (US) to support reproducible builds. (schultz)
       </add>
     </changelog>
   </subsection>
