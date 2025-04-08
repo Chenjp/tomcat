@@ -833,7 +833,7 @@ public final class CGIServlet extends HttpServlet {
                 log.trace(sm.getString("cgiServlet.find.location", currentLocation.getAbsolutePath()));
             }
             StringBuilder cginameBuilder = new StringBuilder();
-            while (!currentLocation.isFile() && dirWalker.hasMoreElements()) {
+            while (!isValidScriptFile(currentLocation) && dirWalker.hasMoreElements()) {
                 String nextElement = (String) dirWalker.nextElement();
                 currentLocation = new File(currentLocation, nextElement);
                 cginameBuilder.append('/').append(nextElement);
@@ -842,7 +842,7 @@ public final class CGIServlet extends HttpServlet {
                 }
             }
             String cginame = cginameBuilder.toString();
-            if (!currentLocation.isFile()) {
+            if (!isValidScriptFile(currentLocation)) {
                 return new String[] { null, null, null, null };
             }
 
@@ -859,6 +859,39 @@ public final class CGIServlet extends HttpServlet {
                 log.trace(sm.getString("cgiServlet.find.found", name, path, scriptname, cginame));
             }
             return new String[] { path, scriptname, cginame, name };
+        }
+
+        // Unsupported chars of last-char in windows file name.
+        private static final char[] INVALID_WINDOWS_FILENAME_ENDS = new char[] { 0x20 };
+
+        /**
+         * Determines whether a script file is valid or not.
+         *
+         * @param scriptFile the executable script file
+         *
+         * @return <code>true</code> if the script file is acceptable in {@link CGIServlet}. Returns <code>false</code>
+         *             if the OS is windows and the last char of filename is unsupported, e.g. whitespace ' '.
+         */
+        protected boolean isValidScriptFile(File scriptFile) {
+            if (!scriptFile.isFile()) {
+                return false;
+            }
+
+            if (JrePlatform.IS_WINDOWS) {
+                // Windows does not allow file names to end in ' ' unless specific low
+                // level APIs are used to create the files that bypass various checks.
+                // File names that end in ' ' are known to cause problems when using
+                // File#getCanonicalPath().
+                String filename = scriptFile.getName();
+                char last = filename.charAt(filename.length() - 1);
+                for (char c : INVALID_WINDOWS_FILENAME_ENDS) {
+                    if (c == last) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return true;
         }
 
         /**
